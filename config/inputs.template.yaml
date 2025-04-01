@@ -1,0 +1,68 @@
+# Required parameters
+bootstrap_module_name: "alz_github"
+iac_type: "terraform"
+starter_module_name: "platform_landing_zone"
+bootstrap_location: "REPLACE_WITH_AZURE_REGION"
+starter_locations: ["REPLACE_WITH_AZURE_REGION"]
+
+# GitHub configuration
+github_organization_name: "REPLACE_WITH_GITHUB_ORG"
+github_repository_name: "alz-terraform-accelerator"
+github_repository_visibility: "private"
+github_personal_access_token: "REPLACE_WITH_GITHUB_PAT"
+github_self_hosted_runners: false
+
+# Environment
+environment_name: "alz"
+service_name: "alz"
+root_parent_management_group_id: ""
+subscription_id_management: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+subscription_id_connectivity: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+subscription_id_identity: "REPLACE_WITH_IDENTITY_SUB_ID"
+management_group_name_prefix: ""
+
+# Azure configuration
+azure:
+  tenant_id: "REPLACE_WITH_TENANT_ID"
+  subscription_id: "REPLACE_WITH_SUBSCRIPTION_ID"
+  location: "REPLACE_WITH_AZURE_REGION"
+  service_principal:
+    use_auth_file: false
+
+# Terraform state
+terraform:
+  version: "1.5.7"
+  runner_type: "agent"
+  providers:
+    azurerm:
+      source: "hashicorp/azurerm"
+      version: "3.74.0"
+  state:
+    type: "azurerm"
+    resource_group_name: "rg-terraform-state"
+    storage_account_name: "REPLACE_WITH_STORAGE_ACCOUNT"
+    container_name: "tfstate"
+    key: "alz.tfstate"
+    use_existing: false
+    
+# Starter module configuration  
+platform_starter:
+  type: "avm-ptn-alz"
+  version: "1.0.0"
+
+# Management group configuration
+management_groups:
+  root_id: "alz"
+  root_name: "Azure Landing Zones"
+
+# Platform subscription configuration
+platform_subscriptions:
+  connectivity_subscription:
+    subscription_id: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION"
+  identity_subscription:
+    subscription_id: "REPLACE_WITH_IDENTITY_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION"
+  management_subscription:
+    subscription_id: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION" 
