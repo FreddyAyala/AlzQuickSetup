@@ -1,6 +1,27 @@
 # Quick-Setup.ps1
 # Simplified script to set up ALZ Terraform Accelerator with GitHub
 
+# Helper function to handle default values and saved settings
+function Read-HostWithDefault {
+    param(
+        [string]$prompt,
+        $savedValue,
+        [string]$defaultValue = ""
+    )
+
+    $displayValue = if ($null -ne $savedValue) { $savedValue } else { $defaultValue }
+    $promptText = if ($displayValue) { "$prompt (default: $displayValue)" } else { $prompt }
+    $value = Read-Host -Prompt $promptText
+
+    if ([string]::IsNullOrWhiteSpace($value)) {
+        if ($null -ne $savedValue) {
+            return $savedValue
+        }
+        return $defaultValue
+    }
+    return $value
+}
+
 Write-Host @"
      \     |     __  /       _ \         _)        |          ___|   |                 |   
     _ \    |        /       |   |  |   |  |   __|  |  /     \___ \   __|   _` |   __|  __| 
@@ -17,131 +38,18 @@ Write-Host "---------------------------------------------------------------`n" -
 
 Write-Host "Checking prerequisites..." -ForegroundColor Cyan
 
-# Initialize prerequisites status
-$prerequisites = @{
-    PowerShell = @{ Required = $true; Installed = $false; Version = "7.0.0"; CurrentVersion = $PSVersionTable.PSVersion }
-    Administrator = @{ Required = $false; Installed = $false }
-    AzureCLI = @{ Required = $false; Installed = $false; Version = "" }
-    Modules = @{
-        Az = @{ Required = $true; Installed = $false; Version = "9.3.0"; CurrentVersion = "0.0.0" }
-        ALZ = @{ Required = $true; Installed = $false; Version = "0.0.1"; CurrentVersion = "0.0.0" }
-    }
-}
-
-# Check PowerShell version
-$prerequisites.PowerShell.Installed = $PSVersionTable.PSVersion -ge [Version]$prerequisites.PowerShell.Version
-
-# Check Administrator privileges
-$prerequisites.Administrator.Installed = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-
-# Check Azure CLI
-try {
-    $azVersion = az --version 2>$null
-    if ($azVersion -match "azure-cli\s+(\d+\.\d+\.\d+)") {
-        $prerequisites.AzureCLI.Installed = $true
-        $prerequisites.AzureCLI.Version = $matches[1]
-    } else {
-        $azVersion = az version --output tsv --query '"azure-cli"' 2>$null
-        if ($azVersion) {
-            $prerequisites.AzureCLI.Installed = $true
-            $prerequisites.AzureCLI.Version = $azVersion
-        }
-    }
-} catch { 
-    Write-Host "Error checking Azure CLI: $_" -ForegroundColor Yellow
-}
-
-# Check PowerShell modules
-foreach ($module in $prerequisites.Modules.Keys) {
-    $installed = Get-Module -ListAvailable -Name $module
-    if ($installed) {
-        $latestVersion = $installed | Sort-Object Version -Descending | Select-Object -First 1
-        $prerequisites.Modules[$module].CurrentVersion = $latestVersion.Version
-        $prerequisites.Modules[$module].Installed = $latestVersion.Version -ge [Version]$prerequisites.Modules[$module].Version
-    }
-}
-
-# Display prerequisites status
-Write-Host "`nPrerequisites Status:" -ForegroundColor Cyan
-Write-Host "===================" -ForegroundColor Cyan
-
-Write-Host "`nRequired Components:" -ForegroundColor Yellow
-Write-Host "- PowerShell Core 7+: $(if ($prerequisites.PowerShell.Installed) { "✓" } else { "✗" }) (Current: $($prerequisites.PowerShell.CurrentVersion))"
-foreach ($module in $prerequisites.Modules.Keys) {
-    Write-Host "- $module Module: $(if ($prerequisites.Modules[$module].Installed) { "✓" } else { "✗" }) (Required: $($prerequisites.Modules[$module].Version), Current: $($prerequisites.Modules[$module].CurrentVersion))"
-}
-
-Write-Host "`nOptional Components:" -ForegroundColor Yellow
-Write-Host "- Administrator Rights: $(if ($prerequisites.Administrator.Installed) { "✓" } else { "✗" })"
-$cliStatus = if ($prerequisites.AzureCLI.Installed) { "✓" } else { "✗" }
-$cliVersion = if ($prerequisites.AzureCLI.Version) { " (Version: $($prerequisites.AzureCLI.Version))" } else { "" }
-Write-Host "- Azure CLI: $cliStatus$cliVersion"
-
-# Check if any required components are missing
-$missingRequired = -not $prerequisites.PowerShell.Installed -or 
-                  ($prerequisites.Modules.Values | Where-Object { -not $_.Installed })
-
-if ($missingRequired) {
-    Write-Host "`nMissing required prerequisites:" -ForegroundColor Red
-    
-    if (-not $prerequisites.PowerShell.Installed) {
-        Write-Host "- PowerShell Core 7+ must be installed from: https://github.com/PowerShell/PowerShell/releases" -ForegroundColor Yellow
-    }
-
-    $missingModules = $prerequisites.Modules.Keys | Where-Object { -not $prerequisites.Modules[$_].Installed }
-    if ($missingModules) {
-        Write-Host "`nThe following PowerShell modules need to be installed/updated:" -ForegroundColor Yellow
-        foreach ($module in $missingModules) {
-            Write-Host "- $module (Required: $($prerequisites.Modules[$module].Version))" -ForegroundColor Yellow
-        }
-    }
-
-    $installModules = Read-Host "`nWould you like to install/update the required PowerShell modules now? (Y/N)"
-    if ($installModules -eq "Y" -or $installModules -eq "y") {
-        Write-Host "`nInstalling/updating PowerShell modules..." -ForegroundColor Cyan
-        foreach ($module in $missingModules) {
-            try {
-                Write-Host "Installing $module..." -ForegroundColor Yellow
-                Install-Module -Name $module -Scope CurrentUser -Force -AllowClobber -ErrorAction Stop
-                Write-Host "$module installed successfully." -ForegroundColor Green
-            }
-            catch {
-                Write-Host "Error installing $module. Error: $_" -ForegroundColor Red
-                Write-Host "`nPlease try installing manually after closing all PowerShell windows:" -ForegroundColor Yellow
-                Write-Host "Install-Module -Name $module -Scope CurrentUser -Force -AllowClobber" -ForegroundColor Yellow
-            }
-        }
-    }
-    else {
-        Write-Host "`nWarning: Continuing without required prerequisites may cause errors later." -ForegroundColor Red
-        Write-Host "You can install them manually later using:" -ForegroundColor Yellow
-        foreach ($module in $missingModules) {
-            Write-Host "Install-Module -Name $module -Scope CurrentUser -Force -AllowClobber" -ForegroundColor Yellow
-        }
-        $continue = Read-Host "`nAre you sure you want to continue anyway? (Y/N)"
-        if ($continue -ne "Y" -and $continue -ne "y") {
-            exit 1
-        }
-        Write-Host "Continuing with missing prerequisites..." -ForegroundColor Yellow
-    }
-}
-
-if (-not $prerequisites.AzureCLI.Installed) {
-    Write-Host "`nAzure CLI is not installed (optional but recommended)." -ForegroundColor Yellow
-    Write-Host "You can install it from: https://docs.microsoft.com/en-us/cli/azure/install-azure-cli" -ForegroundColor Yellow
-    $continue = Read-Host "Continue without Azure CLI? (Y/N)"
-    if ($continue -ne "Y" -and $continue -ne "y") {
-        exit 1
-    }
-}
-
-Write-Host "`nPrerequisites check completed!" -ForegroundColor Green
-
-# Check if ALZ module is installed
-if (-not (Get-InstalledModule -Name ALZ -ErrorAction SilentlyContinue)) {
-    Write-Host "Installing ALZ module..." -ForegroundColor Yellow
+# Ensure ALZ module is installed and use its built-in prerequisite check
+if (-not (Get-Module -ListAvailable -Name ALZ)) {
+    Write-Host "ALZ PowerShell module not found. Installing..." -ForegroundColor Yellow
     Install-Module -Name ALZ -Scope CurrentUser -Force
 }
+
+if (-not (Test-AcceleratorRequirement)) {
+    Write-Error "Prerequisites check failed. Please address the issues above and try again."
+    exit 1
+}
+
+Write-Host "✓ All prerequisites met" -ForegroundColor Green
 
 # Create required directories
 if (-not (Test-Path ".\config")) {
@@ -269,8 +177,90 @@ Write-Host "Settings saved for future runs." -ForegroundColor Green
 
 # Check if template exists, if not create it
 if (-not (Test-Path ".\config\inputs.template.yaml")) {
-    Write-Host "Creating template file..." -ForegroundColor Yellow
-    Copy-Item ".\config\inputs.yaml" ".\config\inputs.template.yaml" -ErrorAction SilentlyContinue
+    Write-Host "Creating inputs.template.yaml..." -ForegroundColor Yellow
+    @"
+# Required parameters
+bootstrap_module_name: "alz_github"
+iac_type: "terraform"
+starter_module_name: "platform_landing_zone"
+bootstrap_location: "REPLACE_WITH_AZURE_REGION"
+starter_locations: ["REPLACE_WITH_AZURE_REGION"]
+
+# Platform Landing Zone tfvars configuration
+platform_landing_zone_tfvars:
+  root_id: "alz"
+  root_name: "Azure Landing Zones"
+  subscription_id_connectivity: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+  subscription_id_identity: "REPLACE_WITH_IDENTITY_SUB_ID"
+  subscription_id_management: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+  default_location: "REPLACE_WITH_AZURE_REGION"
+  email_security_contact: "REPLACE_WITH_SECURITY_EMAIL"
+  log_retention_in_days: 30
+  enable_ddos_protection: false
+  enable_private_dns_zones: true
+
+# GitHub configuration
+github_organization_name: "REPLACE_WITH_GITHUB_ORG"
+github_repository_name: "alz-terraform-accelerator"
+github_repository_visibility: "private"
+github_personal_access_token: "REPLACE_WITH_GITHUB_PAT"
+github_self_hosted_runners: false
+
+# Environment
+environment_name: "alz"
+service_name: "alz"
+root_parent_management_group_id: ""
+subscription_id_management: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+subscription_id_connectivity: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+subscription_id_identity: "REPLACE_WITH_IDENTITY_SUB_ID"
+management_group_name_prefix: ""
+
+# Azure configuration
+azure:
+  tenant_id: "REPLACE_WITH_TENANT_ID"
+  subscription_id: "REPLACE_WITH_SUBSCRIPTION_ID"
+  location: "REPLACE_WITH_AZURE_REGION"
+  service_principal:
+    use_auth_file: false
+
+# Terraform state
+terraform:
+  version: "1.5.7"
+  runner_type: "agent"
+  providers:
+    azurerm:
+      source: "hashicorp/azurerm"
+      version: "3.74.0"
+  state:
+    type: "azurerm"
+    resource_group_name: "rg-terraform-state"
+    storage_account_name: "REPLACE_WITH_STORAGE_ACCOUNT"
+    container_name: "tfstate"
+    key: "alz.tfstate"
+    use_existing: false
+    
+# Starter module configuration  
+platform_starter:
+  type: "avm-ptn-alz"
+  version: "1.0.0"
+
+# Management group configuration
+management_groups:
+  root_id: "alz"
+  root_name: "Azure Landing Zones"
+
+# Platform subscription configuration
+platform_subscriptions:
+  connectivity_subscription:
+    subscription_id: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION"
+  identity_subscription:
+    subscription_id: "REPLACE_WITH_IDENTITY_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION"
+  management_subscription:
+    subscription_id: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+    location: "REPLACE_WITH_AZURE_REGION"
+"@ | Out-File -FilePath ".\config\inputs.template.yaml" -Encoding utf8
 }
 
 # Read the template file and replace placeholders
@@ -290,6 +280,72 @@ $configContent = $templateContent `
 $configContent | Out-File -FilePath ".\config\inputs.yaml" -Encoding utf8
 Write-Host "Configuration saved to .\config\inputs.yaml" -ForegroundColor Green
 
+# Read the YAML content to determine the starter module
+$yamlContent = Get-Content ".\config\inputs.yaml" | ConvertFrom-Yaml
+
+# Get security contact email if using platform_landing_zone
+if ($yamlContent.starter_module_name -eq "platform_landing_zone") {
+    Write-Host "`n=== Platform Landing Zone Configuration ===" -ForegroundColor Cyan
+    
+    # Prompt for all tfvars parameters with defaults, using saved settings if available
+    $rootId = Read-HostWithDefault "Root ID for the Management Group hierarchy" $savedSettings.root_id "alz"
+    $savedSettings.root_id = $rootId
+    
+    $rootName = Read-HostWithDefault "Root Name for the Management Group hierarchy" $savedSettings.root_name "Azure Landing Zones"
+    $savedSettings.root_name = $rootName
+    
+    $securityEmail = Read-HostWithDefault "Security contact email for alerts" $savedSettings.security_email
+    while ([string]::IsNullOrWhiteSpace($securityEmail)) {
+        Write-Host "Security contact email is required." -ForegroundColor Yellow
+        $securityEmail = Read-Host -Prompt "Security contact email for alerts"
+    }
+    $savedSettings.security_email = $securityEmail
+    
+    $logRetention = Read-HostWithDefault "Log retention in days" $savedSettings.log_retention_in_days "30"
+    $savedSettings.log_retention_in_days = $logRetention
+    
+    $enableDdos = Read-HostWithDefault "Enable DDoS Protection? (Y/N)" $savedSettings.enable_ddos_protection "N"
+    $enableDdos = ($enableDdos -eq "Y" -or $enableDdos -eq "y")
+    $savedSettings.enable_ddos_protection = $enableDdos
+    
+    $enablePrivateDns = Read-HostWithDefault "Enable Private DNS Zones? (Y/N)" $savedSettings.enable_private_dns_zones "Y"
+    $enablePrivateDns = (-not ($enablePrivateDns -eq "N" -or $enablePrivateDns -eq "n"))
+    $savedSettings.enable_private_dns_zones = $enablePrivateDns
+
+    # Save settings to file
+    $savedSettings | ConvertTo-Json | Out-File -FilePath ".\config\saved-settings.json" -Encoding utf8
+    
+    # Generate the tfvars file that the accelerator expects
+    $tfvarsContent = @{
+        root_id = $rootId
+        root_name = $rootName
+        default_location = $location
+        email_security_contact = $securityEmail
+        log_retention_in_days = [int]$logRetention
+        enable_ddos_protection = $enableDdos
+        enable_private_dns_zones = $enablePrivateDns
+    }
+
+    # Convert to HCL format
+    $tfvarsHCL = ""
+    foreach ($key in $tfvarsContent.Keys) {
+        $value = $tfvarsContent[$key]
+        if ($value -is [string]) {
+            $tfvarsHCL += "$key = `"$value`"`n"
+        }
+        elseif ($value -is [bool]) {
+            $tfvarsHCL += "$key = $($value.ToString().ToLower())`n"
+        }
+        else {
+            $tfvarsHCL += "$key = $value`n"
+        }
+    }
+
+    # Save the tfvars file
+    $tfvarsHCL | Out-File -FilePath "config/platform_landing_zone.tfvars" -Encoding UTF8
+    Write-Host "Platform Landing Zone configuration saved to config/platform_landing_zone.tfvars" -ForegroundColor Green
+}
+
 # Ask to run the bootstrap
 $runBootstrap = Read-Host -Prompt "Run the bootstrap now? (Y/N)"
 
@@ -298,7 +354,7 @@ if ($runBootstrap -eq "Y" -or $runBootstrap -eq "y") {
     Write-Host "This will create resources in Azure and GitHub." -ForegroundColor Yellow
     
     try {
-        # Run the bootstrap using just the inputs file
+        # Run the bootstrap using just the inputs file - tfvars will be handled by the module
         Deploy-Accelerator -inputs ".\config\inputs.yaml" -output ".\output"
     }
     catch {

@@ -5,6 +5,19 @@ starter_module_name: "platform_landing_zone"
 bootstrap_location: "REPLACE_WITH_AZURE_REGION"
 starter_locations: ["REPLACE_WITH_AZURE_REGION"]
 
+# Platform Landing Zone tfvars configuration
+platform_landing_zone_tfvars:
+  root_id: "alz"
+  root_name: "Azure Landing Zones"
+  subscription_id_connectivity: "REPLACE_WITH_CONNECTIVITY_SUB_ID"
+  subscription_id_identity: "REPLACE_WITH_IDENTITY_SUB_ID"
+  subscription_id_management: "REPLACE_WITH_MANAGEMENT_SUB_ID"
+  default_location: "REPLACE_WITH_AZURE_REGION"
+  email_security_contact: "REPLACE_WITH_SECURITY_EMAIL"
+  log_retention_in_days: 30
+  enable_ddos_protection: false
+  enable_private_dns_zones: true
+
 # GitHub configuration
 github_organization_name: "REPLACE_WITH_GITHUB_ORG"
 github_repository_name: "alz-terraform-accelerator"

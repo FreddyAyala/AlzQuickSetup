@@ -10,7 +10,9 @@
 **/.terraform/*
 *.tfstate
 *.tfstate.*
+# Ignore tfvars files except templates
 *.tfvars
+!*.template.tfvars
 *.tfvars.json
 override.tf
 override.tf.json
@@ -45,9 +47,16 @@ config/saved-settings.json
 # Configuration files with potential secrets
 config/inputs.yaml
 config/*.tfvars
+!config/*.template.tfvars
 config/lib/**/*.json
 **/appsettings.*.json
 **/settings.*.json
+
+# Generated configuration
+config/generated/
+config/temp/
+config/*.generated.*
+config/*.temp.*
 
 # Logs
 logs/
@@ -88,6 +97,8 @@ output/
 **/*.cer
 **/*.der
 **/*.priv
+**/*.pat
+**/*token*
 
 # IDE specific files
 .idea/
@@ -102,4 +113,29 @@ output/
 *.tar.gz
 *.tgz
 *.rar
-*.7z 
+*.7z
+
+# Ignore generated configuration files
+config/inputs.yaml
+config/saved-settings.json
+config/platform_landing_zone.tfvars
+
+# Ignore output directory
+output/
+
+# PowerShell logs
+*.log
+
+# Azure credentials
+*.azureauth
+
+# Terraform files
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.template.tfvars
+.terraform/
+.terraform.lock.hcl
+
+# VS Code settings
+.vscode/ 
